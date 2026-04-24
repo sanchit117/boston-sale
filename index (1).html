@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boston Sell</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;background:#f5f4f0;min-height:100vh}
+  input,select,textarea,button{font-family:inherit}
+  .btn{font-size:13px;padding:7px 14px;border-radius:8px;border:1px solid #d0cfc8;background:transparent;color:#1a1a1a;cursor:pointer;transition:background .12s}
+  .btn:hover{background:#eeede8}
+  .btn:active{transform:scale(0.98)}
+  .btn-primary{background:#1a1a1a;color:#fff;border-color:transparent}
+  .btn-primary:hover{background:#333;opacity:1}
+  .btn-danger{border-color:#f5c1c1;color:#a32d2d}
+  .btn-danger:hover{background:#fcebeb}
+  .fi{font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid #d0cfc8;background:#f5f4f0;color:#1a1a1a;width:100%}
+  .fi:focus{outline:none;border-color:#888}
+  .spinner{display:inline-block;width:13px;height:13px;border:2px solid #d0cfc8;border-top-color:#1a1a1a;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:5px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500}
+  .badge-avail{background:#eaf3de;color:#3b6d11}
+  .badge-sold{background:#fcebeb;color:#a32d2d}
+  .badge-cat{background:#f0efe8;color:#5f5e5a}
+  .toast{position:fixed;bottom:1.2rem;right:1.2rem;background:#1a1a1a;color:#fff;padding:9px 14px;border-radius:8px;font-size:13px;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:9999}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .card{background:#fff;border:1px solid #e8e7e0;border-radius:12px;padding:1.25rem}
+  .stab{font-size:13px;padding:.85rem 1rem;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .12s;white-space:nowrap}
+  .stab-a{color:#1a1a1a;border-bottom-color:#1a1a1a;font-weight:500}
+  .stab:hover:not(.stab-a){color:#1a1a1a}
+  .fl{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+  .fl label{font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:.05em}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .itbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+  .itbl th{text-align:left;font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;border-bottom:1px solid #e8e7e0}
+  .itbl td{padding:9px 10px;border-bottom:1px solid #e8e7e0;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+  .itbl tr:last-child td{border-bottom:none}
+  .itbl tr:hover td{background:#f9f8f4}
+  .thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #e8e7e0}
+  .tph{width:34px;height:34px;border-radius:6px;background:#f0efe8;border:1px solid #e8e7e0;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .sc{background:#fff;border:1px solid #e8e7e0;border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+  .sc:hover{border-color:#999}
+  .sc img{width:100%;aspect-ratio:1;object-fit:cover}
+  .sc-ph{width:100%;aspect-ratio:1;background:#f0efe8;display:flex;align-items:center;justify-content:center;font-size:2.5rem}
+  .sc-body{padding:.75rem}
+  .sc-name{font-size:13px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sc-desc{font-size:12px;color:#888;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sc-foot{display:flex;align-items:center;justify-content:space-between}
+  .sc-price{font-size:14px;font-weight:500}
+  .stat-card{background:#f0efe8;border-radius:8px;padding:.9rem}
+  .stat-label{font-size:12px;color:#888;margin-bottom:4px}
+  .stat-value{font-size:20px;font-weight:500}
+  @media(max-width:500px){
+    .g2{grid-template-columns:1fr}
+    .hide-mobile{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const STORE_KEY = 'bos_sell_items_v1';
+const PROFILE_KEY = 'bos_sell_profile_v1';
+
+function loadData() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); } catch { return []; }
+}
+function saveData(items) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(items)); } catch {}
+}
+function loadProfile() {
+  try {
+    return JSON.parse(localStorage.getItem(PROFILE_KEY)||'null') || {storeName:'My Boston Store',name:'',contact:'',tagline:''};
+  } catch { return {storeName:'My Boston Store',name:'',contact:'',tagline:''}; }
+}
+function saveProfile(p) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+
+const PIN_KEY = 'bos_sell_pin_v1';
+const SESSION_KEY = 'bos_sell_auth_v1';
+const DEFAULT_PIN = '1234';
+
+function getPin() {
+  return localStorage.getItem(PIN_KEY) || DEFAULT_PIN;
+}
+function isAuthed() {
+  return sessionStorage.getItem(SESSION_KEY) === 'yes';
+}
+function setAuthed() {
+  sessionStorage.setItem(SESSION_KEY, 'yes');
+}
+function clearAuth() {
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
+let state = {
+  view: 'store',
+  items: loadData(),
+  profile: loadProfile(),
+  tab: 'add',
+  pending: null,
+  pendingImg: null,
+  aiLoading: false,
+  filterCat: '',
+  filterStatus: '',
+  storeFilter: '',
+  storeFilterCat: '',
+  modalItem: null,
+  exportFilter: 'available',
+  pinError: false
+};
+
+function render() {
+  const root = document.getElementById('root');
+  if (state.view === 'store') { root.innerHTML = renderStore(); bindStore(); return; }
+  if (state.view === 'pin') { root.innerHTML = renderPin(); bindPin(); return; }
+  if (!isAuthed()) { state.view = 'pin'; render(); return; }
+  root.innerHTML = renderSeller();
+  bindSeller();
+}
+
+function renderPin() {
+  return `
+<div style="max-width:900px;margin:0 auto;background:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center">
+  <div style="text-align:center;padding:2rem">
+    <div style="font-size:1.5rem;margin-bottom:.5rem">&#128274;</div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:.35rem">Seller access</div>
+    <div style="font-size:13px;color:#888;margin-bottom:1.5rem">Enter your PIN to manage listings</div>
+    <input class="fi" id="pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" style="width:160px;text-align:center;font-size:18px;letter-spacing:.2em;margin-bottom:.75rem">
+    ${state.pinError?'<div style="font-size:12px;color:#a32d2d;margin-bottom:.75rem">Incorrect PIN</div>':'<div style="height:1.25rem;margin-bottom:.75rem"></div>'}
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-primary" id="pin-submit">Unlock</button>
+      <button class="btn" onclick="state.view=\'store\';state.pinError=false;render()">Cancel</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function bindPin() {
+  const input = document.getElementById('pin-input');
+  const submit = document.getElementById('pin-submit');
+  function attempt() {
+    if (input.value === getPin()) {
+      setAuthed(); state.view='seller'; state.pinError=false; render();
+    } else {
+      state.pinError=true; render();
+    }
+  }
+  if(submit) submit.addEventListener('click', attempt);
+  if(input) { input.addEventListener('keydown', e=>{ if(e.key==='Enter') attempt(); }); input.focus(); }
+}
+
+function renderSeller() {
+  const tabs = ['add','inventory','export','settings'];
+  const labels = ['Add item','Inventory','Export PDF','Settings'];
+  return `
+<div style="max-width:900px;margin:0 auto;background:#fff;min-height:100vh">
+  <div style="display:flex;align-items:center;border-bottom:1px solid #e8e7e0;padding:0 1.25rem;gap:0;overflow-x:auto">
+    <div style="font-size:14px;font-weight:500;padding:1rem 0;margin-right:1.5rem;white-space:nowrap">${esc(state.profile.storeName)}</div>
+    ${tabs.map((t,i)=>`<div class="stab${state.tab===t?' stab-a':''}" data-tab="${t}">${labels[i]}</div>`).join('')}
+    <div style="margin-left:auto;padding-left:1rem;display:flex;gap:8px">
+      <button class="btn" style="font-size:12px;white-space:nowrap" onclick="switchToStore()">View store →</button>
+      <button class="btn" style="font-size:12px;color:#888" onclick="clearAuth();state.view='store';render()" title="Lock seller view">&#128274;</button>
+    </div>
+  </div>
+  <div style="padding:1.25rem">
+    ${state.tab==='add'?renderAddTab():''}
+    ${state.tab==='inventory'?renderInventoryTab():''}
+    ${state.tab==='export'?renderExportTab():''}
+    ${state.tab==='settings'?renderSettingsTab():''}
+  </div>
+</div>`;
+}
+
+function renderAddTab() {
+  const p = state.pending || {};
+  return `
+<div style="max-width:580px">
+  <div id="dropzone" style="border:1.5px dashed #d0cfc8;border-radius:12px;padding:2rem;text-align:center;cursor:pointer;background:#f9f8f4;transition:background .15s">
+    <input type="file" id="fup" accept="image/*" style="display:none">
+    <div style="font-size:2rem;margin-bottom:.5rem">📷</div>
+    <div style="font-size:14px;color:#888"><strong style="color:#1a1a1a">Click to upload</strong> or drag a photo</div>
+    <div style="font-size:12px;color:#aaa;margin-top:4px">AI identifies the item and suggests a price</div>
+  </div>
+  ${state.pending !== null ? `
+  <div class="card" style="margin-top:1rem">
+    <div style="display:grid;grid-template-columns:110px 1fr;gap:1rem;align-items:start">
+      <div>${state.pendingImg?`<img src="${state.pendingImg}" style="width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid #e8e7e0">`:`<div style="width:110px;height:110px;border-radius:8px;background:#f0efe8;border:1px solid #e8e7e0;display:flex;align-items:center;justify-content:center;font-size:2rem">📦</div>`}</div>
+      <div>
+        <div id="ai-status" style="font-size:12px;color:#888;margin-bottom:10px">${state.aiLoading?'<span class="spinner"></span> Analyzing photo...':'<span style="color:#3b6d11">✓ AI identified</span> — edit if needed'}</div>
+        <div class="fl"><label>Item name</label><input class="fi" id="f-name" value="${esc(p.name||'')}" placeholder="e.g. Sony WH-1000XM4 Headphones"></div>
+        <div class="fl"><label>Description</label><input class="fi" id="f-desc" value="${esc(p.desc||'')}" placeholder="Condition, color, what's included..."></div>
+        <div class="g2">
+          <div class="fl"><label>Price ($)</label><input class="fi" id="f-price" type="number" value="${p.price||''}" placeholder="0"></div>
+          <div class="fl"><label>Condition</label><select class="fi" id="f-cond">${['Like new','Good','Fair','For parts'].map(c=>`<option${p.cond===c?' selected':''}>${c}</option>`).join('')}</select></div>
+        </div>
+        <div class="fl"><label>Category</label><select class="fi" id="f-cat">${['Electronics','Clothing','Furniture','Books','Sports','Kitchen','Other'].map(c=>`<option${p.cat===c?' selected':''}>${c}</option>`).join('')}</select></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary" onclick="addItem()">Add to inventory</button>
+          <button class="btn" onclick="clearAdd()">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>` : ''}
+</div>`;
+}
+
+function renderInventoryTab() {
+  const avail = state.items.filter(i=>i.status==='available').length;
+  const sold = state.items.filter(i=>i.status==='sold').length;
+  const rev = state.items.filter(i=>i.status==='sold').reduce((s,i)=>s+i.price,0);
+  const filtered = state.items.filter(i=>{
+    if(state.filterStatus && i.status!==state.filterStatus) return false;
+    if(state.filterCat && i.cat!==state.filterCat) return false;
+    return true;
+  });
+  return `
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem">
+  ${[['Total',state.items.length],['Available',avail],['Sold',sold],['Revenue','$'+rev]].map(([l,v])=>`
+  <div class="stat-card"><div class="stat-label">${l}</div><div class="stat-value">${v}</div></div>`).join('')}
+</div>
+<div style="display:flex;gap:8px;margin-bottom:.85rem;flex-wrap:wrap">
+  <select class="fi" style="width:auto" id="fs" onchange="state.filterStatus=this.value;render()">
+    <option value="">All status</option><option value="available">Available</option><option value="sold">Sold</option>
+  </select>
+  <select class="fi" style="width:auto" id="fc" onchange="state.filterCat=this.value;render()">
+    <option value="">All categories</option>${['Electronics','Clothing','Furniture','Books','Sports','Kitchen','Other'].map(c=>`<option>${c}</option>`).join('')}
+  </select>
+</div>
+<div class="card" style="padding:0;overflow:hidden">
+  ${filtered.length===0?`<div style="padding:2.5rem;text-align:center;color:#888;font-size:14px">${state.items.length===0?'No items yet — add your first item from the Add item tab':'No items match filter'}</div>`:`
+  <div style="overflow-x:auto">
+  <table class="itbl">
+    <thead><tr>
+      <th style="width:44px"></th>
+      <th style="width:35%">Item</th>
+      <th class="hide-mobile" style="width:15%">Category</th>
+      <th style="width:12%">Price</th>
+      <th style="width:13%">Status</th>
+      <th style="width:8%"></th>
+    </tr></thead>
+    <tbody>
+    ${filtered.map(item=>`
+    <tr>
+      <td>${item.img?`<img src="${item.img}" class="thumb">`:`<div class="tph">📦</div>`}</td>
+      <td><div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.name)}</div><div style="font-size:12px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.desc||item.cond||'')}</div></td>
+      <td class="hide-mobile"><span class="badge badge-cat">${esc(item.cat)}</span></td>
+      <td style="font-weight:500">$${item.price}</td>
+      <td><span class="badge ${item.status==='sold'?'badge-sold':'badge-avail'}" style="cursor:pointer" onclick="toggleSold(${item.id})" title="Click to toggle">${item.status==='sold'?'Sold':'Available'}</span></td>
+      <td><button class="btn btn-danger" style="font-size:12px;padding:3px 8px" onclick="deleteItem(${item.id})">✕</button></td>
+    </tr>`).join('')}
+    </tbody>
+  </table>
+  </div>`}
+</div>`;
+}
+
+function renderExportTab() {
+  const toExport = state.items.filter(i => state.exportFilter === 'all' || i.status === state.exportFilter);
+  const p = state.profile;
+  return `
+<div style="max-width:580px">
+  <div class="card" style="margin-bottom:1rem">
+    <div style="font-size:13px;font-weight:500;margin-bottom:.85rem">Export settings</div>
+    <div style="display:flex;gap:12px;margin-bottom:1rem;align-items:center;flex-wrap:wrap">
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="radio" name="expf" value="available" ${state.exportFilter==='available'?'checked':''} onchange="state.exportFilter=this.value;render()"> Available only
+      </label>
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="radio" name="expf" value="all" ${state.exportFilter==='all'?'checked':''} onchange="state.exportFilter=this.value;render()"> All items
+      </label>
+    </div>
+    <div style="font-size:13px;color:#888;margin-bottom:1rem">${toExport.length} item${toExport.length!==1?'s':''} will be exported</div>
+    <button class="btn btn-primary" onclick="printPDF()">Generate & print PDF</button>
+  </div>
+  ${toExport.length>0?`
+  <div style="font-size:13px;font-weight:500;margin-bottom:.75rem;color:#888">Preview</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
+    ${toExport.map(item=>`
+    <div class="sc" style="pointer-events:none">
+      ${item.img?`<img src="${item.img}">`:`<div class="sc-ph">📦</div>`}
+      <div class="sc-body">
+        <div class="sc-name">${esc(item.name)}</div>
+        <div class="sc-foot"><div class="sc-price">$${item.price}</div><span class="badge badge-cat" style="font-size:10px">${esc(item.cat)}</span></div>
+      </div>
+    </div>`).join('')}
+  </div>`:''
+  }
+</div>`;
+}
+
+function renderSettingsTab() {
+  const p = state.profile;
+  return `
+<div style="max-width:440px">
+  <div class="card">
+    <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Store profile</div>
+    <div class="fl"><label>Store name</label><input class="fi" id="s-sname" value="${esc(p.storeName||'')}"></div>
+    <div class="fl"><label>Your name</label><input class="fi" id="s-name" value="${esc(p.name||'')}"></div>
+    <div class="fl"><label>WhatsApp / contact</label><input class="fi" id="s-contact" value="${esc(p.contact||'')}" placeholder="+1 617-xxx-xxxx"></div>
+    <div class="fl"><label>Tagline</label><input class="fi" id="s-tag" value="${esc(p.tagline||'')}" placeholder="Moving out of Boston — all prices firm"></div>
+    <div style="margin-top:12px"><button class="btn btn-primary" onclick="saveSettings()">Save settings</button></div>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Seller PIN</div>
+    <div class="fl"><label>Current PIN</label><input class="fi" id="s-pin-cur" type="password" placeholder="Current PIN" style="max-width:180px"></div>
+    <div class="fl"><label>New PIN</label><input class="fi" id="s-pin-new" type="password" placeholder="New PIN (numbers)" style="max-width:180px"></div>
+    <div style="margin-top:8px"><button class="btn" onclick="changePin()">Update PIN</button></div>
+  </div>
+</div>`;
+}
+
+function renderStore() {
+  const avail = state.items.filter(i=>i.status==='available');
+  const cats = [...new Set(avail.map(i=>i.cat))];
+  const filtered = avail.filter(i=>{
+    if(state.storeFilterCat && i.cat!==state.storeFilterCat) return false;
+    if(state.storeFilter && !i.name.toLowerCase().includes(state.storeFilter.toLowerCase())) return false;
+    return true;
+  });
+  const p = state.profile;
+
+  if (state.modalItem) {
+    const item = state.items.find(i=>i.id===state.modalItem);
+    return item ? renderModal(item) : renderStoreGrid(filtered, avail, cats, p);
+  }
+  return renderStoreGrid(filtered, avail, cats, p);
+}
+
+function renderStoreGrid(filtered, avail, cats, p) {
+  return `
+<div style="max-width:900px;margin:0 auto;background:#fff;min-height:100vh">
+  <div style="border-bottom:1px solid #e8e7e0;padding:.9rem 1.25rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <div>
+      <div style="font-size:16px;font-weight:500">${esc(p.storeName||'Items for sale')}</div>
+      ${p.tagline?`<div style="font-size:12px;color:#888">${esc(p.tagline)}</div>`:''}
+    </div>
+  </div>
+  <div style="padding:1.25rem">
+    <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
+      <input class="fi" style="width:180px" placeholder="Search..." id="ss" value="${esc(state.storeFilter)}" oninput="state.storeFilter=this.value;rerenderStoreGrid()">
+      <select class="fi" style="width:auto" id="sc2" onchange="state.storeFilterCat=this.value;rerenderStoreGrid()">
+        <option value="">All categories</option>${cats.map(c=>`<option${state.storeFilterCat===c?' selected':''}>${c}</option>`).join('')}
+      </select>
+      <div style="margin-left:auto;font-size:13px;color:#888">${filtered.length} item${filtered.length!==1?'s':''}</div>
+    </div>
+    <div id="store-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+      ${renderCards(filtered)}
+    </div>
+    ${filtered.length===0?`<div style="text-align:center;padding:3rem;color:#888;font-size:14px">No items available right now — check back soon!</div>`:''}
+    ${p.contact?`<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e8e7e0;font-size:13px;color:#888">Contact seller: <strong style="color:#1a1a1a">${esc(p.contact)}</strong></div>`:''}
+    <div style="margin-top:1.5rem;text-align:center">
+      <span onclick="openSellerLogin()" style="font-size:11px;color:#ddd;cursor:pointer;user-select:none">&#9679;</span>
+    </div>
+  </div>
+</div>`;
+}
+
+function renderModal(item) {
+  const p = state.profile;
+  return `
+<div style="max-width:900px;margin:0 auto;background:#fff;min-height:100vh">
+  <div style="border-bottom:1px solid #e8e7e0;padding:.9rem 1.25rem;display:flex;align-items:center;gap:.75rem">
+    <button class="btn" style="font-size:12px" onclick="state.modalItem=null;render()">← Back</button>
+    <div style="font-size:14px;color:#888">${esc(state.profile.storeName)}</div>
+  </div>
+  <div style="padding:1.25rem;max-width:480px">
+    ${item.img?`<img src="${item.img}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;margin-bottom:1.25rem;border:1px solid #e8e7e0">`:`<div style="width:100%;aspect-ratio:1;background:#f0efe8;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:4rem;margin-bottom:1.25rem">📦</div>`}
+    <div style="font-size:19px;font-weight:500;margin-bottom:6px">${esc(item.name)}</div>
+    <div style="font-size:14px;color:#888;margin-bottom:1rem">${esc(item.desc||'')}</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem">
+      <div style="font-size:22px;font-weight:500">$${item.price}</div>
+      <span class="badge badge-cat">${esc(item.cat)}</span>
+      <span class="badge" style="background:#f0efe8;color:#5f5e5a">${esc(item.cond)}</span>
+    </div>
+    ${p.contact?`
+    <div style="background:#f9f8f4;border-radius:10px;padding:1rem;font-size:14px">
+      <div style="font-size:12px;color:#888;margin-bottom:4px">Contact to buy</div>
+      <div style="font-weight:500">${esc(p.contact)}</div>
+      ${p.name?`<div style="font-size:13px;color:#888;margin-top:2px">${esc(p.name)}</div>`:''}
+    </div>`:''}
+  </div>
+</div>`;
+}
+
+function renderCards(items) {
+  if(!items.length) return '';
+  return items.map(item=>`
+<div class="sc" onclick="openModal(${item.id})">
+  ${item.img?`<img src="${item.img}" loading="lazy">`:`<div class="sc-ph">📦</div>`}
+  <div class="sc-body">
+    <div class="sc-name">${esc(item.name)}</div>
+    <div class="sc-desc">${esc(item.desc||item.cond||'')}</div>
+    <div class="sc-foot">
+      <div class="sc-price">$${item.price}</div>
+      <span class="badge badge-cat" style="font-size:10px">${esc(item.cat)}</span>
+    </div>
+  </div>
+</div>`).join('');
+}
+
+function rerenderStoreGrid() {
+  const avail = state.items.filter(i=>i.status==='available');
+  const filtered = avail.filter(i=>{
+    if(state.storeFilterCat && i.cat!==state.storeFilterCat) return false;
+    if(state.storeFilter && !i.name.toLowerCase().includes(state.storeFilter.toLowerCase())) return false;
+    return true;
+  });
+  const g = document.getElementById('store-grid');
+  if(g) g.innerHTML = renderCards(filtered);
+}
+
+function openModal(id) { state.modalItem = id; render(); }
+
+function switchToStore() { state.view='store'; state.modalItem=null; render(); }
+function switchToSeller() { state.view='seller'; render(); }
+function openSellerLogin() {
+  if(isAuthed()) { state.view='seller'; render(); }
+  else { state.view='pin'; state.pinError=false; render(); }
+}
+
+function changePin() {
+  const cur = document.getElementById('s-pin-cur')?.value;
+  const nw = document.getElementById('s-pin-new')?.value;
+  if(!cur||!nw){ showToast('Fill in both fields'); return; }
+  if(cur !== getPin()){ showToast('Current PIN is incorrect'); return; }
+  if(nw.length < 4){ showToast('New PIN must be at least 4 characters'); return; }
+  localStorage.setItem(PIN_KEY, nw);
+  showToast('PIN updated');
+  document.getElementById('s-pin-cur').value='';
+  document.getElementById('s-pin-new').value='';
+}
+
+function bindSeller() {
+  document.querySelectorAll('.stab').forEach(el=>{
+    el.addEventListener('click',()=>{state.tab=el.dataset.tab;render()});
+  });
+  const dz=document.getElementById('dropzone');
+  const fup=document.getElementById('fup');
+  if(dz&&fup){
+    fup.addEventListener('change',e=>{if(e.target.files[0])processFile(e.target.files[0])});
+    dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.background='#eeeee8'});
+    dz.addEventListener('dragleave',()=>{dz.style.background='#f9f8f4'});
+    dz.addEventListener('drop',e=>{e.preventDefault();dz.style.background='#f9f8f4';if(e.dataTransfer.files[0])processFile(e.dataTransfer.files[0])});
+  }
+  const fs=document.getElementById('fs'); if(fs) fs.value=state.filterStatus;
+  const fc=document.getElementById('fc'); if(fc) fc.value=state.filterCat;
+}
+function bindStore() {
+  const sc2=document.getElementById('sc2'); if(sc2) sc2.value=state.storeFilterCat;
+}
+
+function processFile(file) {
+  const reader=new FileReader();
+  reader.onload=e=>{
+    state.pendingImg=e.target.result;
+    state.pending={};
+    state.aiLoading=true;
+    render();
+    analyzeImage(e.target.result, file.type||'image/jpeg');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeImage(dataUrl, mimeType) {
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:800,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mimeType,data:dataUrl.split(',')[1]}},
+          {type:'text',text:'Identify this secondhand item for a Boston buy-sell group. Return ONLY valid JSON, no markdown:\n{"name":"specific item name","desc":"one sentence on condition and details","price":suggested_USD_integer,"cond":"Like new|Good|Fair|For parts","cat":"Electronics|Clothing|Furniture|Books|Sports|Kitchen|Other"}'}
+        ]}]
+      })
+    });
+    const data=await res.json();
+    const text=data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(text);
+    state.pending=parsed;
+    state.aiLoading=false;
+    render();
+  } catch(e) {
+    state.aiLoading=false;
+    state.pending={};
+    render();
+    showToast('AI unavailable — fill in details manually');
+  }
+}
+
+function addItem() {
+  const name=document.getElementById('f-name')?.value.trim();
+  const price=parseFloat(document.getElementById('f-price')?.value);
+  if(!name){showToast('Enter an item name');return}
+  if(!price||price<=0){showToast('Enter a valid price');return}
+  const item={
+    id:Date.now(),
+    name,
+    desc:document.getElementById('f-desc')?.value.trim()||'',
+    price:Math.round(price),
+    cond:document.getElementById('f-cond')?.value||'Good',
+    cat:document.getElementById('f-cat')?.value||'Other',
+    status:'available',
+    img:state.pendingImg,
+    added:new Date().toLocaleDateString()
+  };
+  state.items.unshift(item);
+  saveData(state.items);
+  clearAdd();
+  showToast('Item added to inventory');
+}
+
+function clearAdd() {
+  state.pending=null;
+  state.pendingImg=null;
+  state.aiLoading=false;
+  render();
+}
+
+function toggleSold(id) {
+  const item=state.items.find(i=>i.id===id);
+  if(!item)return;
+  item.status=item.status==='available'?'sold':'available';
+  saveData(state.items);
+  render();
+}
+
+function deleteItem(id) {
+  state.items=state.items.filter(i=>i.id!==id);
+  saveData(state.items);
+  render();
+  showToast('Item removed');
+}
+
+function saveSettings() {
+  state.profile={
+    storeName:document.getElementById('s-sname')?.value.trim()||'My Boston Store',
+    name:document.getElementById('s-name')?.value.trim()||'',
+    contact:document.getElementById('s-contact')?.value.trim()||'',
+    tagline:document.getElementById('s-tag')?.value.trim()||''
+  };
+  saveProfile(state.profile);
+  showToast('Settings saved');
+  render();
+}
+
+function printPDF() {
+  const toExport = state.items.filter(i => state.exportFilter === 'all' || i.status === state.exportFilter);
+  if(!toExport.length){showToast('No items to export');return}
+  const p = state.profile;
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>${esc(p.storeName)} — Items for Sale</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,sans-serif;padding:24px;color:#1a1a1a}
+    h1{font-size:20px;font-weight:700;margin-bottom:4px}
+    .meta{font-size:13px;color:#888;margin-bottom:6px}
+    .note{font-size:13px;color:#444;margin-bottom:20px;padding:10px 14px;background:#f5f5f0;border-radius:8px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .item{border:1px solid #e0e0d8;border-radius:8px;overflow:hidden;break-inside:avoid}
+    .item img{width:100%;aspect-ratio:1;object-fit:cover}
+    .item-ph{width:100%;aspect-ratio:1;background:#f5f5f0;display:flex;align-items:center;justify-content:center;font-size:2.5rem}
+    .item-body{padding:8px}
+    .item-name{font-size:12px;font-weight:600;margin-bottom:2px}
+    .item-cond{font-size:10px;color:#888;margin-bottom:4px}
+    .item-price{font-size:14px;font-weight:700;color:#1a6e3c}
+    .item-desc{font-size:10px;color:#aaa;margin-top:3px}
+    @media print{body{padding:16px}.grid{grid-template-columns:repeat(3,1fr)}}
+  </style></head><body>
+  <h1>${esc(p.storeName)}</h1>
+  ${p.name||p.contact?`<div class="meta">${[p.name,p.contact].filter(Boolean).map(esc).join(' · ')}</div>`:''}
+  ${p.tagline?`<div class="note">${esc(p.tagline)}</div>`:''}
+  <div class="grid">
+    ${toExport.map(item=>`
+    <div class="item">
+      ${item.img?`<img src="${item.img}">`:`<div class="item-ph">📦</div>`}
+      <div class="item-body">
+        <div class="item-name">${esc(item.name)}</div>
+        <div class="item-cond">${esc(item.cond)}</div>
+        <div class="item-price">$${item.price}</div>
+        ${item.desc?`<div class="item-desc">${esc(item.desc)}</div>`:''}
+      </div>
+    </div>`).join('')}
+  </div>
+  </body></html>`);
+  win.document.close();
+  win.onload=()=>win.print();
+}
+
+render();
+</script>
+</body>
+</html>
